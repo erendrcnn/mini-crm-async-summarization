@@ -14,6 +14,7 @@ if config.config_file_name is not None:
 
 # Add your model's MetaData object here for 'autogenerate' support
 from app.core.database import Base  # type: ignore
+from app.core.config import settings  # type: ignore
 from app.models.user import User  # noqa
 from app.models.note import Note  # noqa
 
@@ -21,7 +22,11 @@ target_metadata = Base.metadata
 
 
 def get_url():
-    db_url = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+    # Reuse application's normalized URL, but force sync driver for Alembic
+    db_url = settings.db_url or os.getenv("DATABASE_URL", "sqlite:///./app.db")
+    # Alembic runs in sync mode; swap async driver to sync equivalent
+    if db_url.startswith("postgresql+asyncpg"):
+        db_url = db_url.replace("postgresql+asyncpg", "postgresql+psycopg", 1)
     if db_url.startswith("sqlite+aiosqlite"):
         db_url = db_url.replace("sqlite+aiosqlite", "sqlite", 1)
     return db_url

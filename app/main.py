@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from .core.config import settings
+from .core.migrations import upgrade_head
+import os
 from .core.exceptions import (
     validation_exception_handler,
     http_exception_handler,
@@ -43,3 +45,9 @@ def root():
         "docs": "/docs",
         "health": "/health"
     }
+
+
+@app.on_event("startup")
+def maybe_run_migrations():
+    if os.getenv("RUN_MIGRATIONS_ON_STARTUP", "false").lower() in {"1", "true", "yes"}:
+        upgrade_head()
