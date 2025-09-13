@@ -1,0 +1,70 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.direnv/
+.python-version
+
+# Environment files
+.env
+.env.*
+.envrc
+
+# Packaging / build artifacts
+build/
+dist/
+wheels/
+pip-wheel-metadata/
+*.whl
+*.egg-info/
+.eggs/
+
+# Tool caches / test artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.tox/
+.nox/
+coverage.xml
+htmlcov/
+.coverage
+.coverage*
+.hypothesis/
+
+# Logs
+*.log
+logs/
+
+# Databases
+*.sqlite3
+*.db
+
+# Editors / IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs
+docs/_build/
+
+# Notebooks
+.ipynb_checkpoints
+
+# Framework-specific (adjust as needed)
+instance/
+local_settings.py
+.webassets-cache
