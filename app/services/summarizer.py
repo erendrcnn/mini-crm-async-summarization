@@ -1,18 +1,22 @@
-"""Simple, deterministic extractive summarizer (no external services).
+"""
+[NLP - Natural Language Processing]
 
-Approach:
+Simple, deterministic extractive summarizer (no external services) with optional LLM-based summarization via local Ollama.
+
+Approach (summarize):
 - Split into sentences using punctuation boundaries.
 - Build word frequencies (lowercased, basic stopword removal).
 - Score each sentence by sum of its token frequencies.
 - Pick top sentences (preserving original order) within limits.
-
-Designed to be language-agnostic enough for short English/Turkish texts.
 """
 
 from __future__ import annotations
 
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Optional
+
+import os
+import requests
 
 try:
     # Optional settings if available
@@ -24,6 +28,12 @@ except Exception:  # pragma: no cover - fallback when settings import not availa
 _DEFAULT_MAX_CHARS = 300
 _DEFAULT_MAX_SENTENCES = 3
 _DEFAULT_MIN_SENT_CHARS = 20
+
+_DEFAULT_OLLAMA_HOST = "http://localhost:11434"
+
+# Summarization via LLM (optional)
+_DEFAULT_SUMMARIZE_PROVIDER = "extractive"  # "extractive" | "ollama"
+_DEFAULT_SUMMARIZE_MODEL = "llama3.1"
 
 
 # Minimal EN + TR stopwords (curated subset to keep it lightweight)
@@ -69,7 +79,7 @@ def _tokenize(text: str) -> List[str]:
     return [t.lower() for t in _TOKEN_RE.findall(text)]
 
 
-def summarize(text: str) -> str:
+def _summarize_extractive(text: str) -> str:
     text = (text or "").strip()
     if not text:
         return ""
@@ -78,10 +88,8 @@ def summarize(text: str) -> str:
 
     sents = _sentences(text)
     if not sents:
-        # Fallback to trimmed snippet
         return text[:max_chars] + ("…" if len(text) > max_chars else "")
 
-    # Build word frequencies from full text
     tokens = _tokenize(text)
     freqs = {}
     for tok in tokens:
@@ -90,8 +98,7 @@ def summarize(text: str) -> str:
         freqs[tok] = freqs.get(tok, 0) + 1
 
     if not freqs:
-        # No meaningful tokens — fallback to first sentences within char limit
-        out = []
+        out: List[str] = []
         total = 0
         for s in sents:
             if total and total + 1 + len(s) > max_chars:
@@ -105,15 +112,10 @@ def summarize(text: str) -> str:
 
     max_f = max(freqs.values()) or 1
 
-    # Score sentences
-    scored: List[Tuple[int, float, str]] = []  # (index, score, sentence)
+    scored: List[Tuple[int, float, str]] = []
     for idx, s in enumerate(sents):
         toks = _tokenize(s)
-        if len(s) < min_sent_chars:
-            # Slightly penalize very short fragments
-            length_penalty = 0.8
-        else:
-            length_penalty = 1.0
+        length_penalty = 0.8 if len(s) < min_sent_chars else 1.0
         score = 0.0
         for t in toks:
             if t in _STOPWORDS or t.isdigit() or len(t) <= 2:
@@ -122,11 +124,79 @@ def summarize(text: str) -> str:
         score *= length_penalty
         scored.append((idx, score, s))
 
-    # Pick top N sentences by score, but keep original order
     top = sorted(scored, key=lambda x: x[1], reverse=True)[:max_sentences]
     top_sorted = [s for _, _, s in sorted(top, key=lambda x: x[0])]
-
     summary = " ".join(top_sorted)
     if len(summary) > max_chars:
         summary = summary[:max_chars].rstrip() + "…"
     return summary
+
+
+def _summarize_ollama(
+    text: str,
+    *,
+    model: Optional[str] = None,
+    host: Optional[str] = None,
+    temperature: float = 0.2,
+    timeout: float = 60.0,
+) -> str:
+    text = (text or "").strip()
+    if not text:
+        return ""
+
+    max_chars, max_sentences, _ = _limits()
+    host = (
+        host
+        or (getattr(settings, "OLLAMA_HOST", None) if settings else None)
+        or os.environ.get("OLLAMA_HOST")
+        or _DEFAULT_OLLAMA_HOST
+    )
+    model = (
+        model
+        or (getattr(settings, "SUMMARIZE_LLM_MODEL", None) if settings else None)
+        or os.environ.get("SUMMARIZE_LLM_MODEL")
+        or _DEFAULT_SUMMARIZE_MODEL
+    )
+
+    # Prompt geared for concise, faithful summaries
+    prompt = (
+        f"Summarize the following text in at most {max_sentences} sentence(s). "
+        f"Use plain text, no bullets. Keep key facts and names. "
+        f"Hard limit: at most {max_chars} characters total.\n\n"
+        f"=== TEXT START ===\n{text}\n=== TEXT END ==="
+    )
+
+    host = host or _DEFAULT_OLLAMA_HOST
+    url = str(host).rstrip("/") + "/api/generate"
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "temperature": temperature,
+        "stream": False,
+    }
+
+    try:
+        resp = requests.post(url, json=payload, timeout=timeout)
+        resp.raise_for_status()
+        data = resp.json()
+        out = (data.get("response") or "").strip()
+        if not out:
+            return _summarize_extractive(text)
+        # Truncate just in case the model ignores constraints
+        return out[:max_chars].rstrip()
+    except Exception:
+        # Fallback to extractive if LLM not available
+        return _summarize_extractive(text)
+
+
+def summarize(text: str) -> str:
+    provider = (
+        (getattr(settings, "SUMMARIZE_PROVIDER", None) if settings else None)
+        or os.environ.get("SUMMARIZE_PROVIDER")
+        or _DEFAULT_SUMMARIZE_PROVIDER
+    ).lower()
+
+    if provider == "ollama":
+        return _summarize_ollama(text)
+    # default extractive
+    return _summarize_extractive(text)

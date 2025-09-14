@@ -27,6 +27,18 @@ class Settings(BaseSettings):
     WORKER_POLL_INTERVAL_SECONDS: int = 2
     MAX_RETRIES: int = 3
 
+    # Summarizer limits
+    SUMMARY_MAX_CHARS: int = 300
+    SUMMARY_MAX_SENTENCES: int = 3
+    SUMMARY_MIN_SENT_CHARS: int = 20
+
+    # Ollama host (used for optional LLM summarization)
+    OLLAMA_HOST: str = "http://localhost:11434"
+
+    # Summarization via LLM (optional)
+    SUMMARIZE_PROVIDER: str = "extractive"  # "extractive" | "ollama"
+    SUMMARIZE_LLM_MODEL: str = "llama3.1"
+
     model_config = {
         "env_file": ".env",
         "extra": "ignore",

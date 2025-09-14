@@ -15,39 +15,29 @@ async def process_note(session: AsyncSession, note: Note):
         return
 
     # Mark as processing with timestamp
-    await session.execute(
-        update(Note)
-        .where(Note.id == note.id)
-        .values(status=NoteStatus.processing, attempts=note.attempts + 1)
-    )
+    note.status = NoteStatus.processing
+    note.attempts = (note.attempts or 0) + 1
     await session.commit()
 
     try:
-        # Simulate processing time for demo
-        await asyncio.sleep(1)
         result = summarize(note.raw_text)
         
         # Update with result
-        await session.execute(
-            update(Note)
-            .where(Note.id == note.id)
-            .values(status=NoteStatus.done, summary=result)
-        )
+        note.status = NoteStatus.done
+        note.summary = result
         await session.commit()
+        await session.refresh(note)
         print(f"✅ Successfully processed note {note.id}")
         
     except Exception as e:
-        attempts = note.attempts + 1
+        attempts = (note.attempts or 0) + 1
         new_status = NoteStatus.failed if attempts >= settings.MAX_RETRIES else NoteStatus.queued
         
         # Exponential backoff for retries
         retry_delay = min(60, 2 ** attempts)
         
-        await session.execute(
-            update(Note)
-            .where(Note.id == note.id)
-            .values(status=new_status, attempts=attempts)
-        )
+        note.status = new_status
+        note.attempts = attempts
         await session.commit()
         
         if new_status == NoteStatus.queued:

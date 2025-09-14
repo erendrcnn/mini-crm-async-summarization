@@ -1,6 +1,6 @@
 # Mini CRM with Async Summarization (FastAPI)
 
-Small REST API with authentication, role-based access (Admin/Agent), SQL storage, and an asynchronous local summarization worker. Dockerized and deployable to Koyeb. Includes Swagger docs and tests.
+Small REST API with authentication, role-based access (Admin/Agent), SQL storage, and an asynchronous summarization worker. Dockerized and deployable to Koyeb. Includes Swagger docs and tests.
 
 ## Features
 - Auth: email/password signup & login, JWT, roles `ADMIN`/`AGENT` (RBAC)

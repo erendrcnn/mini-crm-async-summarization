@@ -1,6 +1,16 @@
+import sys
+import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from .config import settings
+
+
+# Ensure a compatible event loop on Windows for psycopg async
+if sys.platform.startswith("win"):
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
 
 
 class Base(DeclarativeBase):

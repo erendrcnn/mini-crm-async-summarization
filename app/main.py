@@ -1,5 +1,6 @@
 import sys
 import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -13,18 +14,28 @@ from .core.exceptions import (
 )
 from .routers import auth, notes
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Use a compatible event loop on Windows for psycopg async
+    if sys.platform.startswith("win"):
+        try:
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        except Exception:
+            pass
+    # Optional: run migrations on startup
+    if os.getenv("RUN_MIGRATIONS_ON_STARTUP", "false").lower() in {"1", "true", "yes"}:
+        upgrade_head()
+    yield
+
+
 app = FastAPI(
-    title="Mini CRM API", 
+    title="Mini CRM API",
     version="0.1.0",
-    description="FastAPI mini CRM with async AI summarization"
+    description="FastAPI mini CRM with async AI summarization",
+    lifespan=lifespan,
 )
 
-# Use a compatible event loop on Windows for psycopg async
-if sys.platform.startswith("win"):
-    try:
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    except Exception:
-        pass
+# Windows event loop policy handled in lifespan
 
 # Exception handlers
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -55,8 +66,4 @@ def root():
         "health": "/health"
     }
 
-
-@app.on_event("startup")
-def maybe_run_migrations():
-    if os.getenv("RUN_MIGRATIONS_ON_STARTUP", "false").lower() in {"1", "true", "yes"}:
-        upgrade_head()
+# Migrations handled in lifespan
