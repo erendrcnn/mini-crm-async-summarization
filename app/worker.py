@@ -58,14 +58,22 @@ async def process_note(session: AsyncSession, note: Note):
 
 async def worker_loop():
     while True:
-        async with SessionLocal() as session:
-            result = await session.execute(
-                select(Note).where(Note.status == NoteStatus.queued).order_by(Note.created_at.asc()).limit(5)
-            )
-            notes = result.scalars().all()
-            for note in notes:
-                await process_note(session, note)
-        await asyncio.sleep(settings.WORKER_POLL_INTERVAL_SECONDS)
+        try:
+            async with SessionLocal() as session:
+                result = await session.execute(
+                    select(Note)
+                    .where(Note.status == NoteStatus.queued)
+                    .order_by(Note.created_at.asc())
+                    .limit(5)
+                )
+                notes = result.scalars().all()
+                for note in notes:
+                    await process_note(session, note)
+            await asyncio.sleep(settings.WORKER_POLL_INTERVAL_SECONDS)
+        except Exception as e:
+            # Keep the worker alive on transient errors (e.g., tables not yet created)
+            print(f"Worker loop error: {e}. Retrying shortly...")
+            await asyncio.sleep(5)
 
 
 if __name__ == "__main__":
