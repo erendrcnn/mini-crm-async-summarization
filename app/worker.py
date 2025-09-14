@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import time
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,10 +51,10 @@ async def process_note(session: AsyncSession, note: Note):
         await session.commit()
         
         if new_status == NoteStatus.queued:
-            print(f"⚠️ Note {note.id} failed (attempt {attempts}), retrying in {retry_delay}s")
+            print(f"Note {note.id} failed (attempt {attempts}), retrying in {retry_delay}s")
             await asyncio.sleep(retry_delay)
         else:
-            print(f"❌ Note {note.id} failed permanently after {attempts} attempts: {e}")
+            print(f"Note {note.id} failed permanently after {attempts} attempts: {e}")
 
 
 async def worker_loop():
@@ -77,4 +78,11 @@ async def worker_loop():
 
 
 if __name__ == "__main__":
+    # Use a compatible event loop on Windows for psycopg async
+    if sys.platform.startswith("win"):
+        try:
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        except Exception:
+            pass
+    print("Worker started. Polling for queued notes...")
     asyncio.run(worker_loop())

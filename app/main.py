@@ -1,3 +1,5 @@
+import sys
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -16,6 +18,13 @@ app = FastAPI(
     version="0.1.0",
     description="FastAPI mini CRM with async AI summarization"
 )
+
+# Use a compatible event loop on Windows for psycopg async
+if sys.platform.startswith("win"):
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
 
 # Exception handlers
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
